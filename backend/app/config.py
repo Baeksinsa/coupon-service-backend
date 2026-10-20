@@ -1,4 +1,5 @@
 """환경 변수 기반 설정. 비밀값은 SSM Parameter Store(SecureString)에서 읽을 수 있다."""
+import logging
 import os
 import socket
 
@@ -52,7 +53,14 @@ def get_settings() -> Settings:
     global _settings
     if _settings is None:
         s = Settings()
-        s.db_password = _resolve_db_password(s)
+        try:
+            s.db_password = _resolve_db_password(s)
+        except Exception as exc:  # noqa: BLE001
+            # 비밀값이 아직 없거나 IAM 권한이 없어도 프로세스는 뜬다.
+            # /healthz(ALB)는 200 을 유지하고 /readyz 가 db down 으로 알려준다.
+            logging.getLogger(__name__).error(
+                "db password lookup failed (%s): %s", s.db_password_param, exc
+            )
         if not s.instance_id:
             s.instance_id = os.environ.get("HOSTNAME") or socket.gethostname()
         _settings = s

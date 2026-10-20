@@ -7,8 +7,10 @@ import logging
 import time
 from contextlib import asynccontextmanager
 
+import psycopg
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from psycopg_pool import PoolTimeout
 
 from . import cache, db
 from .config import get_settings
@@ -62,6 +64,15 @@ async def add_ops_headers(request: Request, call_next):
             elapsed_ms,
         )
     return response
+
+
+@app.exception_handler(psycopg.OperationalError)
+@app.exception_handler(PoolTimeout)
+async def db_unavailable_handler(request: Request, exc: Exception):
+    """DB 에 닿지 못한 경우는 코드 버그(500)가 아니라 의존성 장애(503)로 구분한다."""
+    counters.inc("db_unavailable_503")
+    log.error("db unavailable on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(status_code=503, content={"detail": "database unavailable"})
 
 
 @app.exception_handler(Exception)

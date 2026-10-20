@@ -131,3 +131,29 @@ def test_user_coupons(monkeypatch):
 
 def test_ops_requires_token():
     assert client.get("/api/ops/stats").status_code == 403
+
+
+def test_db_unavailable_returns_503(monkeypatch):
+    from psycopg_pool import PoolTimeout
+
+    def boom(event_id):
+        raise PoolTimeout("couldn't get a connection")
+
+    monkeypatch.setattr(repository, "get_event", boom)
+    r = client.get("/api/events/1")
+    assert r.status_code == 503
+    assert r.json() == {"detail": "database unavailable"}
+
+
+def test_settings_survive_missing_secret(monkeypatch):
+    """SSM 비밀값이 없어도 프로세스는 떠야 한다 (ALB 헬스체크 유지)."""
+    from app import config
+
+    def no_param(s):
+        raise RuntimeError("ParameterNotFound")
+
+    monkeypatch.setattr(config, "_settings", None)
+    monkeypatch.setattr(config, "_resolve_db_password", no_param)
+    s = config.get_settings()
+    assert s.db_password == ""
+    monkeypatch.setattr(config, "_settings", None)
