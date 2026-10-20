@@ -2,19 +2,16 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "ReadDbPasswordOnly",
+      "Sid": "ReadAppDbSecretOnly",
       "Effect": "Allow",
-      "Action": "ssm:GetParameter",
-      "Resource": "arn:aws:ssm:ap-northeast-2:<ACCOUNT_ID>:parameter/coupon/prod/db_password"
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:ap-northeast-2:<ACCOUNT_ID>:secret:coupon/prod/app-db-??????"
     },
     {
-      "Sid": "DecryptWithAwsManagedSsmKey",
+      "Sid": "InitDbReadMasterSecretTemporary",
       "Effect": "Allow",
-      "Action": "kms:Decrypt",
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": { "kms:ViaService": "ssm.ap-northeast-2.amazonaws.com" }
-      }
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "<RDS_MASTER_SECRET_ARN>"
     }
   ]
 }

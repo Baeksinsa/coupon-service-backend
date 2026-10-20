@@ -1,6 +1,7 @@
 """PostgreSQL 커넥션 풀. 발급 트랜잭션의 진실의 원천(PRD 5.3)."""
 import logging
 
+from psycopg.conninfo import make_conninfo
 from psycopg_pool import ConnectionPool
 
 from .config import get_settings
@@ -12,10 +13,16 @@ _pool: ConnectionPool | None = None
 
 def _conninfo() -> str:
     s = get_settings()
-    return (
-        f"host={s.db_host} port={s.db_port} dbname={s.db_name} "
-        f"user={s.db_user} password={s.db_password} sslmode={s.db_sslmode} "
-        f"connect_timeout=5 application_name=coupon-api"
+    # make_conninfo 가 값을 인용/이스케이프한다 (생성된 비밀번호의 특수문자 대비)
+    return make_conninfo(
+        host=s.db_host,
+        port=s.db_port,
+        dbname=s.db_name,
+        user=s.db_user,
+        password=s.db_password,
+        sslmode=s.db_sslmode,
+        connect_timeout=5,
+        application_name="coupon-api",
     )
 
 

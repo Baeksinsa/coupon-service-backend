@@ -157,3 +157,25 @@ def test_settings_survive_missing_secret(monkeypatch):
     s = config.get_settings()
     assert s.db_password == ""
     monkeypatch.setattr(config, "_settings", None)
+
+
+def test_secret_password_json_or_plain():
+    """RDS 관리형 JSON 시크릿과 평문 시크릿을 모두 받는다."""
+    from app import config
+
+    assert config._secret_password('{"username": "u", "password": "p w"}') == "p w"
+    assert config._secret_password("plain-pw") == "plain-pw"
+
+
+def test_conninfo_quotes_special_chars(monkeypatch):
+    """비밀번호의 공백/따옴표/역슬래시가 conninfo 파싱을 깨지 않는다."""
+    from psycopg.conninfo import conninfo_to_dict
+
+    from app import config, db
+
+    monkeypatch.setattr(config, "_settings", None)
+    monkeypatch.setattr(config, "_resolve_db_password", lambda s: "a b'c\\d")
+    try:
+        assert conninfo_to_dict(db._conninfo())["password"] == "a b'c\\d"
+    finally:
+        monkeypatch.setattr(config, "_settings", None)
