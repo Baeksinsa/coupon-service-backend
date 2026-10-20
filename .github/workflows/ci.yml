@@ -1,0 +1,61 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# AWS 자격 증명/DB 암호를 GitHub 에 저장하지 않는다 (PRD 6.1).
+# 아래 DB 는 CI 전용 일회성 컨테이너다.
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: coupon
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: coupon
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U coupon"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Syntax check (import)
+        run: python -c "import app.main"
+        env:
+          CACHE_ENABLED: "false"
+
+      - name: Test (API 계약 + DB 동시성)
+        run: pytest -v
+        env:
+          RUN_DB_TESTS: "1"
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_NAME: coupon
+          DB_USER: coupon
+          DB_PASSWORD: ci-only
+          DB_SSLMODE: disable
+          DB_POOL_MAX: "40"
+
+      - name: Shell script syntax
+        working-directory: .
+        run: bash -n deploy/bootstrap_backend.sh && bash -n deploy/init_db.sh

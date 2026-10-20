@@ -1,0 +1,29 @@
+[Unit]
+Description=Coupon Service API (FastAPI / uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=coupon
+Group=coupon
+WorkingDirectory=/opt/coupon-api/backend
+EnvironmentFile=/etc/coupon-api.env
+# 워커 1개 고정: /api/ops/cache 토글이 프로세스 메모리에 있기 때문 (T4).
+# 동시 요청은 FastAPI 스레드풀이 처리하고, 처리량은 인스턴스 2대로 늘린다.
+ExecStart=/opt/coupon-api/backend/.venv/bin/uvicorn app.main:app \
+    --host 0.0.0.0 --port 8000 --workers 1 \
+    --proxy-headers --forwarded-allow-ips='*' \
+    --timeout-keep-alive 75 --no-access-log
+Restart=always
+RestartSec=2
+# ALB 는 기본 30초 이상 요청을 끊지 않으므로 종료 대기를 넉넉히 준다
+TimeoutStopSec=20
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
